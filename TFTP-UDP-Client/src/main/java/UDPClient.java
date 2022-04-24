@@ -1,63 +1,222 @@
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketException;
+import java.util.Locale;
+import java.util.Scanner;
 
+/**
+ * Client class, TFTP protocol on top of UDP according to RFC1350
+ */
 public class UDPClient
 {
-        // the client will take the IP Address of the server (in dotted decimal format as an argument)
-        // given that for this tutorial both the client and the server will run on the same machine, you can use the loopback address 127.0.0.1
-        public static void main(String[] args) throws IOException {
+    //Read opcode
+    private static final byte RRQ = 1;
+    // Write opcode
+    private static final byte WRQ = 2;
+    //Data opcode
+    private static final byte DATA = 3;
+    //Acknowledgement opcode
+    private static final byte ACK = 4;
+    //Error message opcode
+    private static final byte ERROR = 5;
 
-            DatagramSocket socket;
-            DatagramPacket packet;
+    //Error File not found opcode
+    private static final byte FILE_NOT_FOUND = 1;
 
-            if (args.length != 1) {
-                System.out.println("the hostname of the server is required");
-                return;
+    //Port number
+    private static final int port = 9000;
+
+    //Size of regular data packet
+    private static final int packetSize = 512;
+
+    //Maximum size of data packet
+    private static final int maxPacketSize = 516;
+
+    private InetAddress ipAddress;
+    private DatagramSocket socket;
+    private String filename;
+    private static int clientPort;
+
+    //First zero in packet
+    private byte zero = 0;
+
+    //Opcode size
+    private int opSize = 2;
+
+    //Mode
+    private String mode = "octet";
+
+    /**
+     * Method responsible for getting parameters and commands
+     * @throws IOException
+     */
+    public void menu() throws IOException {
+        DatagramPacket packet;
+        System.out.println ("Choose instruction and filename:");
+        Scanner input = new Scanner (System.in);
+        String command = input.nextLine ();
+        String tmpFilename = input.nextLine();
+
+        //Check if file exists
+        boolean exists = false;
+        while(exists == false)
+        {
+            File f = new File (tmpFilename);
+            if(!f.exists ())
+            {
+                System.out.println ("File named " + tmpFilename +" does not exist, enter another name");
+                Scanner sc = new Scanner (System.in);
+                tmpFilename = sc.nextLine ();
             }
-
-            int len = 256;
-            byte[] buf = new byte[len];
-
-            //****************************************************************************************
-            // add a line below to instantiate the DatagramSocket socket object
-            // bind the socket to some port over 1024
-            // Note: this is NOT the port we set in the server
-            // If you put the same port you will get an exception because
-            // the server is also listening to this port and both processes run on the same machine!
-            //****************************************************************************************
-            socket = new DatagramSocket(4000);
-
-            // Add source code below to get the address from args[0], the argument handed in when the process is started.
-            // In Netbeans, add a command line argument by changing the running configuration.
-            // The address must be transfomed from a String to an InetAddress (an IP addresse object in Java).
-            InetAddress address = InetAddress.getByName(args[0]);
-
-            //************************************************************
-            // Add a line to instantiate a packet using the buf byte array
-            // Set the IP address and port fields in the packet so that the packet is sent to the server
-            //************************************************************
-            packet = new DatagramPacket(buf, len);
-            packet.setAddress(address);
-            packet.setPort(9000);
-
-            // Send the datagram packet to the server (this is a blocking call) - we do not care about the data that the packet carries.
-            // The server will respond to any kind of request (i.e. regardless of the packet payload)
-            socket.send(packet);
-
-            //**************************************************************************************
-            // add a line of code below to receive a packet containing the server's response
-            // we can reuse the DatagramPacket instantiated above - all settable values will be overriden when the receive call completes.
-            //**************************************************************************************
-            socket.receive(packet);
-
-            // display response
-            String received = new String(packet.getData());
-            System.out.println("Today's date: " + received.substring(0, packet.getLength()));
-            socket.close();
+            else{
+                System.out.println ("File located");
+                filename = tmpFilename;
+                exists = true;
+            }
         }
+        System.out.println (filename);
+        if(command.equals ("read"))
+        {
+            //Send RRQ request
+            packet = new DatagramPacket (rrqRequest (filename), rrqRequest (filename).length, ipAddress,port);
+            socket.setSoTimeout (10000);
+            socket.send (packet);
+        }
+        else if(command.equals ("write"))
+        {
+            //Send write request
+            packet = new DatagramPacket (wrqRequest (filename), wrqRequest (filename).length, ipAddress,port);
+            socket.setSoTimeout (10000);
+            socket.send (packet);
+            if(isASKReceived(packet))
+            {
+                System.out.println ("Input data:");
+                Scanner sc = new Scanner (System.in);
+                String data = sc.nextLine ();
+                // Write to file and send
+                DatagramPacket packet1;
+                DatagramPacket rec;
+                FileWriter fw = new FileWriter (filename);
+                fw.write (data);
+                fw.close ();
+                File f = new File (filename);
+                FileInputStream fis = new FileInputStream (f);
+                byte [] packetData = null;
+                int blockNo = 1;
+                while(fis.available () > 0)
+                {
+                    if(fis.available () >= packetSize)
+                    {
+                        packetData = new byte[packetSize];
+                        fis.read (packetData);
+                    }
+                    else{
+                        packetData = new byte[fis.available ()];
+                        fis.read (packetData);
+                    }
+
+                    packet1 = new DatagramPacket (packetData,blockNo);
+                    packet1.setPort (port);
+                    rec = sendPack(packet);
+                    blockNo++;
+                }
+            }
+        }
+        else{
+            System.out.println ("Wrong command");
+            menu ();
+        }
+    }
+
+    public byte[] rrqRequest(String filename)
+    {
+        // Size of array: "0" + opcode + lenght of filename + "0" + octet lenght + "0"
+        byte[] rrqArray = new byte[opSize + filename.length () + 1 + mode.length () + 1];
+        rrqArray[0] = zero;
+        rrqArray[1] = RRQ;
+        char[]filenameArr = new char[filename.length ()];
+        filenameArr = filename.toCharArray ();
+        int i = 2;
+        for(char c : filenameArr)
+        {
+            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            i++;
+        }
+        rrqArray[i] = zero;
+        i++;
+        char []modeArr = mode.toCharArray ();
+        for(char c: modeArr)
+        {
+            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            i++;
+        }
+        rrqArray[i] = zero;
+        return rrqArray;
+    }
+
+    public byte[] wrqRequest(String filename)
+    {
+        // Size of array: "0" + opcode + lenght of filename + "0" + octet lenght + "0"
+        byte[] rrqArray = new byte[opSize + filename.length () + 1 + mode.length () + 1];
+        rrqArray[0] = zero;
+        rrqArray[1] = WRQ;
+        char[]filenameArr = new char[filename.length ()];
+        filenameArr = filename.toCharArray ();
+        int i = 2;
+        for(char c : filenameArr)
+        {
+            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            i++;
+        }
+        rrqArray[i] = zero;
+        i++;
+        char []modeArr = mode.toCharArray ();
+        for(char c: modeArr)
+        {
+            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            i++;
+        }
+        rrqArray[i] = zero;
+        return rrqArray;
+    }
+
+    public boolean isASKReceived(DatagramPacket packet)
+    {
+        //TODO
+        return true;
+    }
+
+    public DatagramPacket sendPack(DatagramPacket packet) throws SocketException {
+        byte[] buf = new byte[maxPacketSize];
+        DatagramPacket rec = new DatagramPacket (buf, buf.length);
+        socket.setSoTimeout (10000);
+        rec = received(packet);
+        return rec;
+    }
+    public DatagramPacket received(DatagramPacket packet)
+    {
+        //TODO
+        return null;
+    }
+
+
+
+
+
+
+
+
+    public static void main(String[] args) {
+
 
     }
+
+
+}
 
 
