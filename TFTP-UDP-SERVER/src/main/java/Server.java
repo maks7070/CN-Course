@@ -3,82 +3,86 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.ArrayList;
 import java.util.Date;
 
 public class Server extends Thread
 {
-    protected DatagramSocket socket = null;
+    private static final int opSize = 2;
 
-    public Server() throws SocketException {
-        this("UDPSocketServer");
-    }
+    // read request opcode
+    private static final byte RRQ = 1;
+    // write request opcode
+    private static final byte WRQ = 2;
+    // data request opcode
+    private static final byte DATA = 3;
+    // acknowlege request opcode
+    private static final byte ACK = 4;
+    // error request opcode
+    private static final byte ERROR = 5;
 
-    public Server(String name) throws SocketException {
-        super(name);
-        // **********************************************
-        // Add a line here to instantiate a DatagramSocket for the socket field defined above.
-        // Bind the socket to port 9000 (any port over 1024 would be ok as long as no other application uses it).
-        // Ports below 1024 require administrative rights when running the applications.
-        // Take a note of the port as the client needs to send its datagram to an IP address and port to which this server socket is bound.
-        //***********************************************
+    // File not found opcode
+    private static final byte FNF = 1;
 
-        socket = new DatagramSocket(9000);
+    private static final int MAX_PACKET = 512;
+    private static final int FULL_PACKET = 516;
 
-    }
+    InetAddress ipAddress;
+
+    DatagramSocket socket = null;
+    DatagramSocket socket2 = null;
+    int port = 10000;
+    private static int clPort;
 
     @Override
-    public void run() {
+    public void run()
+    {
+        byte []request = new byte[256];
+        DatagramPacket packet = new DatagramPacket (request,request.length);
 
-        int counter = 0;                    // just a counter - used below
-        byte[] recvBuf = new byte[256];     // a byte array that will store the data received by the client
 
-        try {
-            // run forever
-            while (true) {
-                //**************************************
-                // Add source code below to:
-                // 1) create a DatagramPacket called packet. Use the byte array above to construct the datagram
-                // 2) wait until a client sends something (a blocking call).
-                //**************************************
+    }
 
-                DatagramPacket packet = new DatagramPacket(recvBuf, 256);
-                socket.receive(packet);
+    public void createErrorPacket()
+    {
+        String errorMessage = "File not found";
 
-                // Get the current date/time and copy it in the byte array
-                String dString = new Date ().toString() + " - Counter: " + (counter);
-                int len = dString.length();                                             // length of the byte array
-                byte[] buf = new byte[len];                                             // byte array that will store the data to be sent back to the client
-                System.arraycopy(dString.getBytes(), 0, buf, 0, len);
+        int lenght = opSize + 2 + errorMessage.getBytes ().length + 1;
+        byte []errorArray = new byte[lenght];
+        byte []messageArr = errorMessage.getBytes ();
+        errorArray[1] = ERROR;
+        errorArray[3] = FNF;
 
-                //****************************************
-                // Add source code below to extract the IP address (an InetAddress object) and source port (int) from the received packet
-                // They will be both used to send back the response (which is now in the buf byte array -- see above)
-                //****************************************
-                InetAddress addr = packet.getAddress();
-                int srcPort = packet.getPort();
-
-                // set the buf as the data of the packet (let's re-use the same packet object)
-                packet.setData(buf);
-
-                // set the IP address and port extracted above as destination IP address and port in the packet to be sent
-                packet.setAddress(addr);
-                packet.setPort(srcPort);
-
-                //*****************************************
-                // Add a line below to send the packet (a blocking call)
-                //*****************************************
-                socket.send(packet);
-
-                counter++;
-            }
-        } catch (IOException e) {
-            System.err.println(e);
+        for(int i  = 4; i < lenght;i++)
+        {
+            errorArray[i] = messageArr[i - 4];
         }
-        socket.close();
+
+        DatagramPacket datagramPacket = new DatagramPacket (errorArray, errorArray.length,ipAddress,port);
+
     }
 
-    public static void main(String[] args) throws IOException {
-        new Server().start();
-        System.out.println("Time Server Started");
+    public void receivePacket(DatagramPacket packet)
+    {
+        socket2.receive (packet);
+        ipAddress = packet.getAddress ();
+        clPort = packet.getPort ();
+        socket = new DatagramSocket (port);
+
+        byte[] receivedData = packet.getData ();
+        byte first = 0;
+
+        if(receivedData[1] == RRQ)
+        {
+            System.out.println ("Read request");
+        }
+        else if(receivedData[1] == WRQ)
+        {
+            System.out.println ("Write request");
+        }
+
+
+
     }
+
 }
