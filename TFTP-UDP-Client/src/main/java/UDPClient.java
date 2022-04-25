@@ -1,3 +1,4 @@
+import javax.xml.crypto.Data;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -6,6 +7,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Scanner;
 
@@ -187,8 +189,12 @@ public class UDPClient
 
     public boolean isASKReceived(DatagramPacket packet)
     {
-        //TODO
+
+        // Lenght of ackPacket is 4
+        byte[] ackPacket = new byte[4];
+        DatagramPacket ackReceived = new DatagramPacket (ackPacket, ackPacket.length);
         return true;
+
     }
 
     public DatagramPacket sendPack(DatagramPacket packet) throws SocketException {
@@ -202,6 +208,24 @@ public class UDPClient
     {
         //TODO
         return null;
+    }
+
+    public DatagramPacket createDataPacket(byte[]data, int block)
+    {
+        int lenght = opSize + 2 + data.length;
+        byte [] packetArr = new byte[lenght];
+        packetArr[1] = DATA;
+        packetArr[3] = (byte) block;
+        for(int i = 4; i < packetArr.length;i++)
+        {
+            packetArr[i] = data[i -4];
+        }
+
+        DatagramPacket packet = new DatagramPacket (packetArr,packetArr.length,ipAddress,port);
+        return packet;
+
+
+
     }
 
 
