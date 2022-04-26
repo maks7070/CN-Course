@@ -3,10 +3,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
+import java.net.*;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Scanner;
@@ -39,8 +36,8 @@ public class UDPClient
     //Maximum size of data packet
     private static final int maxPacketSize = 516;
 
-    private InetAddress ipAddress;
-    private DatagramSocket socket;
+    private static InetAddress ipAddress;
+    private static DatagramSocket socket;
     private String filename;
     private static int clientPort;
 
@@ -235,7 +232,19 @@ public class UDPClient
 
 
 
-    public static void main(String[] args) {
+
+
+    public static void main(String[] args) throws IOException {
+        if(args.length != 1)
+        {
+            System.out.println ("Invalid arguments");
+            return;
+        }
+        UDPClient client = new UDPClient ();
+        clientPort = 3000;
+        ipAddress = InetAddress.getByName (args[0]);
+        socket = new DatagramSocket (clientPort,ipAddress);
+        client.menu ();
 
 
     }

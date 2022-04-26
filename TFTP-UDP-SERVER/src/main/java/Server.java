@@ -1,3 +1,4 @@
+import javax.xml.crypto.Data;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -34,11 +35,22 @@ public class Server extends Thread
     int port = 10000;
     private static int clPort;
 
+    public Server(String name) throws SocketException {
+        super(name);
+        socket2 = new DatagramSocket (11000);
+    }
+
     @Override
     public void run()
     {
         byte []request = new byte[256];
         DatagramPacket packet = new DatagramPacket (request,request.length);
+
+        while(true)
+        {
+
+
+        }
 
 
     }
@@ -58,12 +70,11 @@ public class Server extends Thread
             errorArray[i] = messageArr[i - 4];
         }
 
-        DatagramPacket datagramPacket = new DatagramPacket (errorArray, errorArray.length,ipAddress,port);
+        DatagramPacket datagramPacket = new DatagramPacket (errorArray, errorArray.length,ipAddress,clPort);
 
     }
 
-    public void receivePacket(DatagramPacket packet)
-    {
+    public void receivePacket(DatagramPacket packet) throws IOException {
         socket2.receive (packet);
         ipAddress = packet.getAddress ();
         clPort = packet.getPort ();
@@ -71,10 +82,14 @@ public class Server extends Thread
 
         byte[] receivedData = packet.getData ();
         byte first = 0;
+        byte []opcode = new byte[2];
+        opcode[1] = receivedData[1];
+
 
         if(receivedData[1] == RRQ)
         {
             System.out.println ("Read request");
+            
         }
         else if(receivedData[1] == WRQ)
         {
@@ -83,6 +98,39 @@ public class Server extends Thread
 
 
 
+    }
+
+
+    public DatagramPacket createACKpacket(int blockNumber)
+    {
+        int length = opSize + 2;
+        byte[]arr = new byte[length];
+
+        arr[1] = ACK;
+        arr[3] = (byte) blockNumber;
+        DatagramPacket packet = new DatagramPacket (arr,arr.length,ipAddress,clPort);
+        return packet;
+
+    }
+    
+    public DatagramPacket createDATApacket(int block, byte[]data)
+    {
+        int lenght = opSize + 2 + data.length;
+        byte []arr = new byte[lenght];
+        arr[1] = DATA;
+        arr[3] = (byte) block;
+        
+        for(int i  = 4; i < lenght;i++)
+        {
+            arr[i] = data[i - 4];
+        }
+        
+        DatagramPacket packet = new DatagramPacket (arr,arr.length,ipAddress,clPort);
+        return packet;
+    }
+
+    public static void main(String[] args) throws SocketException {
+        new Server (args[0]).run ();
     }
 
 }
