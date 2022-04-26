@@ -225,6 +225,18 @@ public class UDPClient
 
     }
 
+    public DatagramPacket createACKpacket(int blockNumber)
+    {
+        int length = opSize + 2;
+        byte[]arr = new byte[length];
+
+        arr[1] = ACK;
+        arr[3] = (byte) blockNumber;
+        DatagramPacket packet = new DatagramPacket (arr,arr.length,ipAddress,clientPort);
+        return packet;
+
+    }
+
 
 
 
