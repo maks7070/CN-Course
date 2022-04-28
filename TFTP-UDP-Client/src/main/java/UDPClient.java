@@ -85,6 +85,27 @@ public class UDPClient
             packet = new DatagramPacket (rrqRequest (filename), rrqRequest (filename).length, ipAddress,port);
             socket.setSoTimeout (10000);
             socket.send (packet);
+
+            byte[]buf = new byte[maxPacketSize];
+            DatagramPacket rec = new DatagramPacket (buf,buf.length);
+            rec = receivedResent (packet);
+            boolean endOfData = false;
+            int block = 1;
+            if(checkIfNotErrorPacket (rec))
+            {
+                while(!endOfData)
+                {
+                    byte []data = rec.getData ();
+                    byte[]number = new byte[2];
+                    number[1] = data[3];
+                    if(number[1] == (byte) block)
+                    {
+
+                    }
+                }
+            }
+
+
         }
         else if(command.equals ("write"))
         {
@@ -130,6 +151,21 @@ public class UDPClient
             System.out.println ("Wrong command");
             menu ();
         }
+    }
+
+    public DatagramPacket receivedResent(DatagramPacket packet) throws SocketException {
+
+            byte []buf = new byte[maxPacketSize];
+            DatagramPacket rec = new DatagramPacket (buf,buf.length);
+        try{
+            socket.receive (rec);
+            clientPort = rec.getPort ();
+        }
+        catch(IOException e)
+        {
+            sendPack (packet);
+        }
+        return rec;
     }
 
     public byte[] rrqRequest(String filename)
@@ -198,14 +234,10 @@ public class UDPClient
         byte[] buf = new byte[maxPacketSize];
         DatagramPacket rec = new DatagramPacket (buf, buf.length);
         socket.setSoTimeout (10000);
-        rec = received(packet);
+        rec = receivedResent (packet);
         return rec;
     }
-    public DatagramPacket received(DatagramPacket packet)
-    {
-        //TODO
-        return null;
-    }
+
 
     public DatagramPacket createDataPacket(byte[]data, int block)
     {
@@ -225,6 +257,8 @@ public class UDPClient
 
     }
 
+
+
     public DatagramPacket createACKpacket(int blockNumber)
     {
         int length = opSize + 2;
@@ -234,6 +268,18 @@ public class UDPClient
         arr[3] = (byte) blockNumber;
         DatagramPacket packet = new DatagramPacket (arr,arr.length,ipAddress,clientPort);
         return packet;
+
+    }
+    public boolean checkIfNotErrorPacket(DatagramPacket packet)
+    {
+        byte []data = packet.getData ();
+        if(data[1] == ERROR)
+        {
+            return false;
+        }
+        else{
+            return true;
+        }
 
     }
 
