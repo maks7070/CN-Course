@@ -247,7 +247,7 @@ public class Server extends Thread
     }
 
     public static void main(String[] args) throws SocketException {
-        new Server (args[0]).run ();
+        new Server("localhost").run();
         System.out.println("Start");
     }
 

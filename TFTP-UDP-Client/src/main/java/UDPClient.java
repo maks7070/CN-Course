@@ -80,17 +80,25 @@ public class UDPClient
         {
             //Send RRQ request
             packet = new DatagramPacket (rrqRequest (filename), rrqRequest (filename).length, ipAddress,port);
+            System.out.println(packet);
             socket.setSoTimeout (10000);
+            System.out.println("abc");
             socket.send (packet);
+            System.out.println("abc");
 
             byte[]buf = new byte[maxPacketSize];
-            DatagramPacket rec = new DatagramPacket (buf,buf.length);
+            System.out.println("abc");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            rec = receivedResent (packet);
+            System.out.println("abc");
+            DatagramPacket rec = receivedResent (packet);
+
             boolean endOfData = false;
+
             int block = 1;
+
             if(checkIfNotErrorPacket (rec))
             {
+                System.out.println("here");
                 while(!endOfData)
                 {
                     byte []data = rec.getData ();
@@ -157,7 +165,7 @@ public class UDPClient
                         fis.read (packetData);
                     }
 
-                    packet1 = new DatagramPacket (packetData,blockNo);
+                    packet1 = createDataPacket(packetData,blockNo);
                     packet1.setPort (port);
                     rec = sendPack(packet);
                     blockNo++;
@@ -172,8 +180,9 @@ public class UDPClient
 
     public DatagramPacket receivedResent(DatagramPacket packet) throws SocketException {
 
-            byte []buf = new byte[maxPacketSize];
-            DatagramPacket rec = new DatagramPacket (buf,buf.length);
+        byte []buf = new byte[maxPacketSize];
+        DatagramPacket rec = new DatagramPacket (buf,buf.length);
+        System.out.println("bbb");
         try{
             socket.receive (rec);
             clientPort = rec.getPort ();
@@ -182,6 +191,7 @@ public class UDPClient
         {
             sendPack (packet);
         }
+        System.out.println("mmm");
         return rec;
     }
 
@@ -196,7 +206,7 @@ public class UDPClient
         int i = 2;
         for(char c : filenameArr)
         {
-            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            rrqArray[i] = (byte) c;
             i++;
         }
         rrqArray[i] = zero;
@@ -204,7 +214,7 @@ public class UDPClient
         char []modeArr = mode.toCharArray ();
         for(char c: modeArr)
         {
-            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            rrqArray[i] = (byte) c;
             i++;
         }
         rrqArray[i] = zero;
@@ -222,7 +232,7 @@ public class UDPClient
         int i = 2;
         for(char c : filenameArr)
         {
-            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            rrqArray[i] = (byte) c;
             i++;
         }
         rrqArray[i] = zero;
@@ -230,7 +240,7 @@ public class UDPClient
         char []modeArr = mode.toCharArray ();
         for(char c: modeArr)
         {
-            rrqArray[i] = Byte.parseByte (String.valueOf (c));
+            rrqArray[i] = (byte) c;
             i++;
         }
         rrqArray[i] = zero;
@@ -308,14 +318,14 @@ public class UDPClient
 
 
     public static void main(String[] args) throws IOException {
-        if(args.length != 1)
-        {
-            System.out.println ("Invalid arguments");
-            return;
-        }
+//        if(args.length != 1)
+//        {
+//            System.out.println ("Invalid arguments");
+//            return;
+//        }
         UDPClient client = new UDPClient ();
         clientPort = 3000;
-        ipAddress = InetAddress.getByName (args[0]);
+        ipAddress = InetAddress.getByName ("localhost");
         socket = new DatagramSocket (clientPort,ipAddress);
         client.menu ();
 
