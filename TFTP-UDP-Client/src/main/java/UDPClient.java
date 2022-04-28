@@ -3,6 +3,7 @@ import java.io.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Scanner;
 
 /**
@@ -60,43 +61,32 @@ public class UDPClient
 
         //Check if file exists
         boolean exists = false;
-        while(exists == false)
-        {
-            File f = new File (tmpFilename);
-            if(!f.exists ())
-            {
-                System.out.println ("File named " + tmpFilename +" does not exist, enter another name");
-                Scanner sc = new Scanner (System.in);
-                tmpFilename = sc.nextLine ();
-            }
-            else{
-                System.out.println ("File located");
-                filename = tmpFilename;
-                exists = true;
-            }
-        }
+        checkForFile(tmpFilename);
         System.out.println (filename);
         if(command.equals ("read"))
         {
             //Send RRQ request
             packet = new DatagramPacket (rrqRequest (filename), rrqRequest (filename).length, ipAddress,port);
-            System.out.println(packet);
+
             socket.setSoTimeout (10000);
-            System.out.println("abc");
+
             socket.send (packet);
-            System.out.println("abc");
+
 
             byte[]buf = new byte[maxPacketSize];
-            System.out.println("abc");
+
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            System.out.println("abc");
+
             DatagramPacket rec = receivedResent (packet);
+
 
             boolean endOfData = false;
 
             int block = 1;
-
-            if(checkIfNotErrorPacket (rec))
+            byte[]opcode = rec.getData();
+            System.out.println(opcode[1]!= ERROR);
+            if(opcode[1] != ERROR)
             {
                 System.out.println("here");
                 while(!endOfData)
@@ -180,18 +170,26 @@ public class UDPClient
 
     public DatagramPacket receivedResent(DatagramPacket packet) throws SocketException {
 
+
         byte []buf = new byte[maxPacketSize];
         DatagramPacket rec = new DatagramPacket (buf,buf.length);
-        System.out.println("bbb");
+
         try{
+            //TODO mistake here
+            System.out.println("here");
             socket.receive (rec);
+            System.out.println("here2");
             clientPort = rec.getPort ();
+
         }
-        catch(IOException e)
+        catch(SocketTimeoutException e)
         {
+            System.out.println("Timeout reached! " + e);
             sendPack (packet);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        System.out.println("mmm");
+
         return rec;
     }
 
@@ -295,17 +293,30 @@ public class UDPClient
     }
 
 
-    public boolean checkIfNotErrorPacket(DatagramPacket packet)
-    {
-        byte []data = packet.getData ();
-        if(data[1] == ERROR)
-        {
-            return false;
-        }
-        else{
-            return true;
-        }
 
+    private void checkForFile(String s) throws IOException{
+        File f = new File(s);
+        //Check if file exists
+        if(f.exists()){
+            System.out.println(System.getProperty("user.dir") + "/" + s + " exists");
+            filename = s;
+        }
+        //If not client must enter a valid filename.
+        else {
+            System.out.println(System.getProperty("user.dir") + "/" + s + " does not exist");
+            System.out.println("Enter file name to write: ");
+            Scanner reader = new Scanner(System.in);
+            checkForFile(reader.nextLine());
+        }
+    }
+    private void createSocket(String s) throws UnknownHostException, SocketException{
+        Random r = new Random();
+        int min = 1025;
+        int max = 65535;
+        int result = r.nextInt(max-min) + min;
+        clientPort = result;
+        ipAddress = InetAddress.getByName(s);
+        socket = new DatagramSocket(clientPort, ipAddress);//create a socket
     }
 
 
@@ -324,9 +335,8 @@ public class UDPClient
 //            return;
 //        }
         UDPClient client = new UDPClient ();
-        clientPort = 3000;
-        ipAddress = InetAddress.getByName ("localhost");
-        socket = new DatagramSocket (clientPort,ipAddress);
+        client.createSocket("localhost");
+
         client.menu ();
 
 
