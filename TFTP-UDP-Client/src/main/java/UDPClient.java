@@ -1,8 +1,5 @@
 import javax.xml.crypto.Data;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.Locale;
@@ -88,6 +85,7 @@ public class UDPClient
 
             byte[]buf = new byte[maxPacketSize];
             DatagramPacket rec = new DatagramPacket (buf,buf.length);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
             rec = receivedResent (packet);
             boolean endOfData = false;
             int block = 1;
@@ -100,9 +98,28 @@ public class UDPClient
                     number[1] = data[3];
                     if(number[1] == (byte) block)
                     {
+                        baos.write(data,4,rec.getLength() - 4);
+                        createACKpacket(number);
+
+
 
                     }
+                    System.out.println("Packet count: " + block);
+                    rec = receivedResent(packet);
+                    block++;
+                    if(data.length < packetSize)
+                    {
+                        endOfData = true;
+                        baos.write(data,4,rec.getLength() - 4);
+                    }
                 }
+                FileOutputStream fos = new FileOutputStream(filename);
+                byte[]file = baos.toByteArray();
+                fos.write(file);
+                fos.close();
+            }
+            else{
+                System.out.println("File not found");
             }
 
 
@@ -259,17 +276,15 @@ public class UDPClient
 
 
 
-    public DatagramPacket createACKpacket(int blockNumber)
-    {
-        int length = opSize + 2;
-        byte[]arr = new byte[length];
-
-        arr[1] = ACK;
-        arr[3] = (byte) blockNumber;
-        DatagramPacket packet = new DatagramPacket (arr,arr.length,ipAddress,clientPort);
-        return packet;
-
+    public void createACKpacket(byte[] blockNumber) throws IOException {
+        byte []send = new byte[4];
+        send[1] = ACK;
+        send[3] = blockNumber[1];
+        DatagramPacket ack = new DatagramPacket(send,send.length,ipAddress,clientPort);
+        socket.send(ack);
     }
+
+
     public boolean checkIfNotErrorPacket(DatagramPacket packet)
     {
         byte []data = packet.getData ();

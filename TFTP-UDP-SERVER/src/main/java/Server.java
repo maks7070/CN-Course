@@ -1,11 +1,6 @@
-import javax.xml.crypto.Data;
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.Date;
+import java.io.*;
+import java.net.*;
+import java.util.Arrays;
 
 public class Server extends Thread
 {
@@ -30,14 +25,18 @@ public class Server extends Thread
 
     InetAddress ipAddress;
 
-    DatagramSocket socket = null;
-    DatagramSocket socket2 = null;
+    DatagramSocket clientSocket = null;
+    DatagramSocket firstSocket = null;
     int port = 10000;
     private static int clPort;
 
+    public Server() throws SocketException {
+        this("Server");
+    }
+
     public Server(String name) throws SocketException {
         super(name);
-        socket2 = new DatagramSocket (11000);
+        firstSocket = new DatagramSocket (11000);
     }
 
     @Override
@@ -46,16 +45,21 @@ public class Server extends Thread
         byte []request = new byte[256];
         DatagramPacket packet = new DatagramPacket (request,request.length);
 
-        while(true)
+        try{
+            while(true)
+            {
+                receivePacket(packet);
+            }
+        }catch(Exception e)
         {
-
-
+            e.printStackTrace();
         }
+        clientSocket.close();
 
 
     }
 
-    public void createErrorPacket()
+    public DatagramPacket createErrorPacket()
     {
         String errorMessage = "File not found";
 
@@ -71,14 +75,15 @@ public class Server extends Thread
         }
 
         DatagramPacket datagramPacket = new DatagramPacket (errorArray, errorArray.length,ipAddress,clPort);
+        return datagramPacket;
 
     }
 
     public void receivePacket(DatagramPacket packet) throws IOException {
-        socket2.receive (packet);
+        firstSocket.receive (packet);
         ipAddress = packet.getAddress ();
         clPort = packet.getPort ();
-        socket = new DatagramSocket (port);
+        clientSocket = new DatagramSocket (port);
 
         byte[] receivedData = packet.getData ();
         byte first = 0;
@@ -88,16 +93,96 @@ public class Server extends Thread
 
         if(receivedData[1] == RRQ)
         {
+            String filename = getFilename(receivedData);
             System.out.println ("Read request");
+            //TODO check file
+            checkForFile(filename);
+            File f = new File(filename);
+            FileInputStream fis = new FileInputStream(f);
+            int block = 1;
+            byte []data = null;
+            boolean endLoop = false;
+
+            while(fis.available() > 0 && !endLoop)
+            {
+                if(fis.available() >= MAX_PACKET){
+                    data = new byte[MAX_PACKET];
+                    fis.read(data);
+                }
+                else{
+                    data = new byte[fis.available()];
+                    fis.read(data);
+                }
+                DatagramPacket dataPacket = createDATApacket(block,data);
+                DatagramPacket ack = sendPacket(dataPacket);
+                if (ack.getData()[3] != block){
+                    endLoop = true;
+                }
+                block++;
+            }
+
+
             
         }
         else if(receivedData[1] == WRQ)
         {
             System.out.println ("Write request");
+            String filename = getFilename(receivedData);
+            int block = 0;
+            clientSocket.send(createACKpacket(block));
+            block++;
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            boolean endLoop = false;
+            DatagramPacket rec = new DatagramPacket(new byte[FULL_PACKET],FULL_PACKET);
+            while(!endLoop)
+            {
+                rec = resentReceive(rec);
+                if(rec.getData()[3] != block)
+                {
+                    byte[] data = Arrays.copyOfRange(rec.getData(),4,rec.getLength());
+
+                    if(rec.getData().length == FULL_PACKET)
+                    {
+                        baos.write(data);
+                    }
+                    else{
+                        endLoop = true;
+                        baos.write(data);
+                    }
+                    clientSocket.send(createACKpacket(block));
+                    block++;
+                }
+            }
+
+            byte[] file = baos.toByteArray();
+            File f = new File(filename);
+            if(!f.exists()){
+                f.createNewFile();
+            }
+            FileOutputStream fos = new FileOutputStream(f);
+            fos.write(file);
+            fos.close();
+
         }
 
 
 
+    }
+
+    public String getFilename(byte []data)
+    {
+        int val = 2;
+        byte zero = 0;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        while(data[val] != zero)
+        {
+            baos.write(data[val]);
+            val++;
+        }
+        byte []byteName = baos.toByteArray();
+        String filename = new String(byteName);
+        return filename;
     }
 
 
@@ -129,8 +214,41 @@ public class Server extends Thread
         return packet;
     }
 
+    public DatagramPacket sendPacket(DatagramPacket packet) throws IOException {
+        byte []buf = new byte[FULL_PACKET];
+        DatagramPacket rec = new DatagramPacket(buf,buf.length);
+        clientSocket.setSoTimeout(10000);
+        clientSocket.send(packet);
+        rec = resentReceive(packet);
+        return rec;
+
+    }
+
+
+    public DatagramPacket resentReceive(DatagramPacket packet) throws IOException {
+        byte[]buf = new byte[FULL_PACKET];
+        DatagramPacket rec = new DatagramPacket(buf,FULL_PACKET);
+        try{
+            clientSocket.receive(rec);
+            clPort = rec.getPort();
+
+        }catch(SocketTimeoutException e)
+        {
+            sendPacket(packet);
+        }
+        return  rec;
+    }
+
+    public void checkForFile(String s) throws IOException {
+        File f = new File(s);
+        if(!f.exists()){
+            clientSocket.send(createErrorPacket());
+        }
+    }
+
     public static void main(String[] args) throws SocketException {
         new Server (args[0]).run ();
+        System.out.println("Start");
     }
 
 }
